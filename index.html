@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenNavData Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <style>
+        body,
+        html {
+            display: inline-flex;
+            margin: 0;
+            border: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        #map {
+            position: relative;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #info_display {
+            position: relative;
+            height: 100%;
+            width: 500px;
+        }
+
+        .route-input {
+            width: 100%;
+            min-height: 100px;
+            /* Altura mínima desejada */
+            font-size: 14px;
+            /* Tamanho da fonte desejado */
+            resize: none;
+            /* Impede a redimensionamento do textarea pelo usuário */
+            overflow-y: hidden;
+        }
+
+        .uppercase-input input[type="text"],
+        .uppercase-input textarea {
+            text-transform: uppercase;
+        }
+
+        /* Estilos personalizados para o tooltip */
+        .custom-tooltip {
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+            font-size: 14px;
+            color: black;
+        }
+
+        .info_display {
+            margin: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div class="info_display">
+        <div class="row align-items-start">
+            <div class="col mb-3 uppercase-input">
+                <label for="in_depature" class="form-label">Depature</label>
+                <input type="text" class="form-control" id="in_depature" maxlength="4" pattern="[A-Z]{4}" required>
+            </div>
+            <div class="col mb-3 uppercase-input">
+                <label for="in_destination" class="form-label">Destination</label>
+                <input type="text" class="form-control" id="in_destination" maxlength="4" pattern="[A-Z]{4}" required>
+            </div>
+        </div>
+        <div class="mb-3 uppercase-input">
+            <label for="in_route" class="form-label">Route</label>
+            <textarea id="in_route" class="form-control route-input" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" id="btn-gen-route">Submit</button>
+    </div>
+
+    <script>
+        // Render Map
+        var map = L.map('map').setView([0, 0], 3);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        map.on('zoomend', function () {
+            var zoomLevel = map.getZoom();
+            console.log("Zoom mudou para:", zoomLevel);
+            // Faça algo com o novo valor do zoom aqui
+        });
+    </script>
+
+    <script>
+        // Adiciona um ouvinte de evento ao campo "Rota" para ajustar dinamicamente sua altura
+        document.getElementById('in_route').addEventListener('input', function () {
+            this.style.height = 'auto'; // Redefine a altura para automático
+            this.style.height = (this.scrollHeight) + 'px'; // Define a altura com base no conteúdo
+        });
+        // Adiciona um ouvinte de evento ao campo "Rota" para impedir uma quebra de linha
+        document.getElementById('in_route').addEventListener('keydown', function (event) {
+            // Verifica se a tecla pressionada é a tecla "Enter"
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Impede o comportamento padrão da tecla "Enter" (quebra de linha)
+            }
+        });
+    </script>
+
+    <script>
+        // Define um ícone personalizado
+        const customIcon = L.icon({
+            iconUrl: 'https://static.vecteezy.com/system/resources/previews/001/189/067/non_2x/star-four-point-png.png',
+            iconSize: [26, 26],
+            iconAnchor: [13, 13],
+            tooltipAnchor: [10, 0]
+        });
+
+        // Cria um tooltip personalizado sem fundo
+        var customTooltip = L.tooltip({
+            permanent: true,
+            direction: 'right',
+            className: 'custom-tooltip' // Nome da classe CSS personalizada
+        }).setContent("SBMO"); // Conteúdo do tooltip
+    </script>
+
+    <script>
+        const navData = {
+            airports: [
+                {
+                    id: "SBMO",
+                    region: "SB",
+                    latitude: -9.510833333,
+                    longitude: -35.79166667,
+                },
+                {
+                    id: "SBRF",
+                    region: "SB",
+                    latitude: -8.126388889,
+                    longitude: -34.92277778,
+                },
+                {
+                    id: "SBJP",
+                    region: "SB",
+                    latitude: -7.151111111,
+                    longitude: -34.95027778,
+                },
+                {
+                    id: "SBNT",
+                    region: "SB",
+                    latitude: -5.908333333,
+                    longitude: -35.24916667,
+                },
+                {
+                    id: "SBFZ",
+                    region: "SB",
+                    latitude: -3.775833333,
+                    longitude: -38.53222222,
+                },
+                {
+                    id: "SBBE",
+                    region: "SB",
+                    latitude: -1.384722222,
+                    longitude: -48.47888889,
+                },
+                {
+                    id: "SBSL",
+                    region: "SB",
+                    latitude: -2.586944444,
+                    longitude: -44.23611111,
+                },
+            ]
+        };
+    </script>
+
+    <script>
+        function clearMap() {
+            // Iterar sobre todas as camadas e remover cada uma, exceto a camada base
+            map.eachLayer(function (layer) {
+                if (layer instanceof L.TileLayer) {
+                    return; // Ignora a camada de azulejos (a camada base)
+                }
+                map.removeLayer(layer);
+            });
+        }
+
+        // Render Route
+        document.getElementById('btn-gen-route').addEventListener('click', function () {
+            clearMap();
+
+            const depature = document.getElementById('in_depature').value.toUpperCase();
+            const destination = document.getElementById('in_destination').value.toUpperCase();
+            const route = document.getElementById('in_route').value;
+
+            const string = depature + " " + route + " " + destination;
+            const partes = string.split(" ").filter(function (item) {
+                return item.trim() !== '';
+            })
+
+            var points = [];
+
+            for (parte of partes) {
+                const cord = converterCoordenadas(parte);
+                const airport = obterAirport(parte);
+
+                if (parte === "DCT") continue;
+                else if (airport !== null) {
+                    const lat = airport.latitude;
+                    const lon = airport.longitude;
+                    points.push([lat, lon]);
+                }
+                else if (cord !== null) {
+                    const lat = cord.latitude;
+                    const lon = cord.longitude;
+                    points.push([lat, lon]);
+                }
+            }
+
+            var minLat = points[0][0];
+            var maxLat = points[0][0];
+            var minLon = points[0][1];
+            var maxLon = points[0][1];
+
+            for (var i = 1; i < points.length; i++) {
+                var lat = points[i][0];
+                var lon = points[i][1];
+
+                if (lat < minLat) {
+                    minLat = lat;
+                } else if (lat > maxLat) {
+                    maxLat = lat;
+                }
+
+                if (lon < minLon) {
+                    minLon = lon;
+                } else if (lon > maxLon) {
+                    maxLon = lon;
+                }
+            }
+
+            var mid_point = [(minLat + maxLat) / 2, (minLon + maxLon) / 2];
+
+            console.log(mid_point);
+            console.log(depature);
+            console.log(destination);
+
+            /*
+            // Adiciona um marcador ao mapa usando o ícone personalizado
+            L.marker(mid_point, { icon: customIcon })
+                .addTo(map)
+                .bindTooltip(customTooltip).openTooltip();
+            */
+           
+            map.setView(mid_point, 6)
+
+            // Cria uma linha usando os pontos definidos acima
+            L.polyline(points, { color: 'red' }).addTo(map);
+        })
+
+        // Tipos de Coordenadas:
+        // Graus e Minutos -> 1234N12345E
+        // Graus -> 12N123E
+        function converterCoordenadas(coordenada) {
+            // Variaveis Locais
+            var lat = 0;
+            var lon = 0;
+            // Expressão regular para coordenada apenas em graus
+            var regexGraus = /^\d{2}[NS]\d{3}[EW]$/;
+            // Expressão regular para coordenada no formato graus e minutos
+            var regexGrausMinutos = /^\d{4}[NS]\d{5}[EW]$/;
+            // Expressão regular para coordenada no formato graus e minutos
+            var regexGrausMinutosSegundos = /^\d{6}[NS]\d{7}[EW]$/;
+
+            if (regexGraus.test(coordenada)) {
+                // Extrair os valores de latitude e longitude
+                const latitude = parseFloat(coordenada.slice(0, 2));
+                const longitude = parseFloat(coordenada.slice(3, 6));
+                // Verificar se é sul (S) ou oeste (W) e converter para negativo, se necessário
+                lat = coordenada[2] === 'S' ? -latitude : latitude;
+                lon = coordenada[6] === 'W' ? -longitude : longitude;
+            }
+
+            else if (regexGrausMinutos.test(coordenada)) {
+                // Extrair os valores de latitude e longitude
+                const latitude = parseFloat(coordenada.slice(0, 4) / 100);
+                const longitude = parseFloat(coordenada.slice(5, 10) / 100);
+                // Verificar se é sul (S) ou oeste (W) e converter para negativo, se necessário
+                lat = coordenada[4] === 'S' ? -latitude : latitude;
+                lon = coordenada[10] === 'W' ? -longitude : longitude;
+            }
+
+            else if (regexGrausMinutosSegundos.test(coordenada)) {
+                // Extrair os valores de latitude e longitude
+                const latitude = parseFloat(coordenada.slice(0, 6) / 10000);
+                const longitude = parseFloat(coordenada.slice(7, 15) / 10000);
+                // Verificar se é sul (S) ou oeste (W) e converter para negativo, se necessário
+                lat = coordenada[6] === 'S' ? -latitude : latitude;
+                lon = coordenada[15] === 'W' ? -longitude : longitude;
+            }
+
+            else {
+                return null;
+            }
+
+            // Teste de está dentro dos limites
+            if (lat > 90 || lon > 180) return null;
+            // Retorna [Latitude, Longitude]
+            return { latitude: lat, longitude: lon };
+        }
+
+        function grausToDecimal(graus) {
+
+        }
+
+        function obterAirport(id) {
+            var airport = navData.airports.find(airport => airport.id === id);
+            if (airport === undefined) airport = null;
+            return airport
+        }
+
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+</body>
+
+</html>
